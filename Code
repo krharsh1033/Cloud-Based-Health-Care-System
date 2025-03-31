@@ -1,0 +1,108 @@
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>
+#include <ESP8266WiFi.h>
+#include "DHT.h"
+#define SCREEN_WIDTH 128 // width
+#define SCREEN_HEIGHT 64 // height
+
+#define OLED_RESET     -1 // Reset pin
+#define SCREEN_ADDRESS 0x3C
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+DHT dht(D3, DHT22);
+char status;
+WiFiClient client;
+
+String apiKey = "KRYG97O7VXSPP3V0";
+const char *ssid =  "Shah M2 Pro";
+const char *pass =  "assam7869";
+const char* server = "api.thingspeak.com";
+
+void setup() {
+  Serial.begin(9600);
+  delay(10);
+  Wire.begin();
+  dht.begin();
+  WiFi.begin(ssid, pass);
+  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+}
+
+void loop() {
+  //DHT22 sensor
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  //Rain sensor
+  int r = analogRead(A0);
+  r = map(r, 0, 1024, 100, 0);
+
+
+  if (client.connect(server, 80)) {
+    String postStr = apiKey;
+    postStr += "&field1=";
+    postStr += String(t);
+    postStr += "&field2=";
+    postStr += String(h);
+    postStr += "&field3=";
+    postStr += String(r);
+    postStr += "\r\n\r\n\r\n\r\n";
+
+    client.print("POST /update HTTP/1.1\n");
+    client.print("Host: api.thingspeak.com\n");
+    client.print("Connection: close\n");
+    client.print("X-THINGSPEAKAPIKEY: " + apiKey + "\n");
+    client.print("Content-Type: application/x-www-form-urlencoded\n");
+    client.print("Content-Length: ");
+    client.print(postStr.length());
+    client.print("\n\n\n\n");
+    client.print(postStr);
+
+    Serial.print("Temperature: ");
+    Serial.print(t);
+    Serial.println("C");
+    Serial.print("Humidity: ");
+    Serial.print(h);
+    Serial.println("%");
+    Serial.print("Rain:");
+    Serial.print(r);
+    Serial.println("mm");
+
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(0,0);
+    display.print("Tem:");
+    display.print(t);
+    display.println("C");
+    display.setCursor(0,20);
+    display.print("Hum:");
+    display.print(h);
+    display.println("%");
+    display.setCursor(0,40);
+    display.print("Rain:");
+    display.print(r);
+    display.println("mm");
+    display.display();
+    delay(1000);
+    display.clearDisplay();
+
+  }
+  client.stop();
+  delay(1000);
+}
